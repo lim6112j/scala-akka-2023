@@ -5,6 +5,7 @@ import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
 import part2actors.ChangingActorBehavior.Mom.MomStart
+import scala.collection.mutable
 
 object ChangingActorBehavior extends App {
   object FussyKid {
@@ -69,4 +70,61 @@ object ChangingActorBehavior extends App {
 
   val statelessKid = system.actorOf(Props[StatelessFussyKid])
   mom ! Mom.MomStart(statelessKid)
+
+
+  // excercise 2
+
+  case class Vote(candidate: String)
+  case object VoteStatusRequest
+  case class VoteStatusReply(candidate: Option[String])
+  var votesStatus : mutable.Map[ActorRef, String] = mutable.Map()
+
+  class Citizen extends Actor {
+    override def receive: Receive = {
+      case Vote(s) => votesStatus += (self -> s)
+      case VoteStatusRequest =>
+//        println("votesStatus size :" + votesStatus.size + ",fsender : " + self.toString())
+        votesStatus contains self match {
+          case true => sender() ! VoteStatusReply(Some(votesStatus(self)))
+          case false => sender() ! VoteStatusReply(None)
+        }
+    }
+  }
+  case class AgregateVotes(citizens: Set[ActorRef])
+
+  class VoteAgregattor extends Actor {
+    var candidateMap : mutable.Map[String, Int] = mutable.Map()
+    override def receive: Receive = {
+      case VoteStatusReply(candidate) =>
+        candidate match {
+          case Some(s) =>
+            candidateMap contains s match {
+              case true =>
+                candidateMap += (s -> (candidateMap(s) + 1))
+                println(candidateMap)
+              case false => candidateMap += (s -> 1)
+            }
+          case None =>
+        }
+      case AgregateVotes(citizens) =>
+        for (citizen <- citizens) citizen ! VoteStatusRequest
+    }
+  }
+  val alice = system.actorOf(Props[Citizen])
+  val bob = system.actorOf(Props[Citizen])
+  val charlie = system.actorOf(Props[Citizen])
+  val daniel = system.actorOf(Props[Citizen])
+  alice ! Vote("Martin")
+  bob ! Vote("Jonas")
+  charlie ! Vote("Roland")
+  daniel ! Vote("Roland")
+  val voteAgregator = system.actorOf(Props[VoteAgregattor])
+  voteAgregator ! AgregateVotes(Set(alice, bob, charlie, daniel))
+
+  /*
+   print the status of the votes
+   Martin -> 1
+   Jonas -> 1
+   Roland -> 2
+   */
 }
