@@ -7,6 +7,7 @@ import akka.actor.Props
 import part2actors.ChangingActorBehavior.Mom.MomStart
 import scala.collection.mutable
 
+
 object ChangingActorBehavior extends App {
   object FussyKid {
     case object KidAccept
@@ -70,7 +71,32 @@ object ChangingActorBehavior extends App {
 
   val statelessKid = system.actorOf(Props[StatelessFussyKid])
   mom ! Mom.MomStart(statelessKid)
+  // execise 1
+  // counter app with context.become and no mutable state
 
+
+  object Counter {
+    case object Increment
+    case object Decrement
+    case object Print
+  }
+
+  class Counter extends Actor {
+    import Counter._
+    override def receive: Receive = countReceive(0)
+    def countReceive(count: Int): Receive = {
+      case Increment => context.become(countReceive(count + 1), true)
+      case Decrement => context.become(countReceive(count - 1), true)
+      case Print => println(s"Current value: ${count}")
+    }
+
+  }
+
+  import Counter._
+  val counter = system.actorOf(Props[Counter], "myCounter")
+  (1 to 5).foreach(_ => counter ! Increment)
+  (1 to 3).foreach(_ => counter ! Decrement)
+  counter ! Print
 
   // excercise 2
 
